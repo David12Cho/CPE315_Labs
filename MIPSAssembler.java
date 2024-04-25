@@ -1,9 +1,6 @@
 import java.util.*;
 import java.io.*;
-
-//Still need to do:
-//Complete a preprocesser function that gets rid of whitelines and newlines
-//make functions for and, xor, or, etc.
+//David Cho and Franklin Sugitan
 
 public class MIPSAssembler {
     // Maps to hold the binary codes for opcodes, registers, and addresses of labels.
@@ -78,32 +75,32 @@ public class MIPSAssembler {
         secondLoop();
     }
     // First pass of the assembler: Reads the assembly file and extracts labels and instructions
-    public static void firstLoop(String filename) throws IOException {
-        Scanner scanner = new Scanner(new File(filename));
+    public static void firstLoop(String file) throws IOException {
+        Scanner scanner = new Scanner(new File(file));
         int address = 0;
 
         while (scanner.hasNextLine()) {
-            String line = scanner.nextLine().trim();
+            String nextline = scanner.nextLine().trim();
             // Skip empty lines and comments
-            if (line.isEmpty()){
+            if (nextline.isEmpty()){
                 continue;
             }
-            if(line.startsWith("#")){
+            if(nextline.charAt(0) == '#'){
                 continue;
             }
             // Remove inline comments and process labels
-            if (line.contains("#")) {
-                line = line.substring(0, line.indexOf("#")).trim();
+            if (nextline.contains("#")) {
+                nextline = nextline.substring(0, nextline.indexOf("#")).trim();
             }
-            if (line.contains(":")) {
-                String label = line.substring(0, line.indexOf(":")).trim();
+            if (nextline.contains(":")) {
+                String label = nextline.substring(0, nextline.indexOf(":")).trim();
                 labelAddresses.put(label, address);
-                line = line.substring(line.indexOf(":") + 1).trim();
-                if (line.isEmpty()){
+                nextline = nextline.substring(nextline.indexOf(":") + 1).trim();
+                if (nextline.isEmpty()){
                     continue;
                 }
             }
-            instructions.add(line);
+            instructions.add(nextline);
             address+=1;
         }
         scanner.close();
@@ -140,11 +137,8 @@ public class MIPSAssembler {
                     parts.add(newIndex, subPart[0]);
                     i++;
                 }
-            }   
+            }
         }
-
-
-
         String opcode = parts.get(0);
         if (opcodes.containsKey(opcode)) {
             String[] partsAsArray = parts.toArray(new String[parts.size()]);
@@ -184,7 +178,7 @@ public class MIPSAssembler {
                 default:
                     System.out.println("unsupported instruction: " + line);
                     return true;
-                    // break;
+                // break;
             }
         } else {
             System.out.println("invalid instruction: " + opcode);
@@ -227,8 +221,7 @@ public class MIPSAssembler {
 
     public static void I_instruction(String opcode, String[] parts) {
         if (opcode.equals("lw") || opcode.equals("sw")) {
-            String offsetPart = parts[2];
-            String[] offsetParts = offsetPart.split("\\(");
+            String[] offsetParts = parts[2].split("\\(");
             String offset = offsetParts[0].trim();
             String rs = offsetParts[1].replace(")", "").trim();
             rs = convertToBinary(rs);
@@ -239,8 +232,8 @@ public class MIPSAssembler {
         }
     }
     public static void Branch_instruction(String opcode, String[] parts, int index) {
-        int offset = labelAddresses.get(parts[3]) - index - 1;
-        String offsetBin = convert_immediate_To_Binary(String.valueOf(offset), 16);
+        String offsetBin = convert_immediate_To_Binary(String.valueOf(labelAddresses.get(parts[3]) - index - 1),
+                16);
         System.out.println(opcodes.get(opcode) + " " + convertToBinary(parts[1]) + " "
                 + convertToBinary(parts[2]) + " " + offsetBin);
     }
