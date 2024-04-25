@@ -63,6 +63,9 @@ public class MIPSAssembler {
         opcodes.put("jal", "000011");
         opcodes.put("000000", "R-type");
 
+        opcodes.put("and", "what");
+        opcodes.put("or", "what");
+
     }
     // Entry point of the program
     public static void main(String[] args) throws IOException {
@@ -108,54 +111,87 @@ public class MIPSAssembler {
     // Second pass of the assembler: Converts each instruction into machine code
     public static void secondLoop(){
         for (int index = 0; index < instructions.size(); index++) {
-            convertInstruction(instructions.get(index), index);
+            boolean invalidCatch = convertInstruction(instructions.get(index), index);
+            if(invalidCatch){
+                break;
+            }
         }
     }
     // Converts a single instruction into machine code based on its type and operands
-    public static void convertInstruction(String line, int instructionIndex) {
-        String[] parts = line.split("[,\\s]+");
-        if (parts.length < 1) return; // Ignore blank or incomplete lines
+    public static boolean convertInstruction(String line, int instructionIndex) {
+        List<String> parts = new ArrayList<>(Arrays.asList(line.split("[,\\s]+")));
+        if (parts.size() < 1) return false; // Ignore blank or incomplete lines
 
-        String opcode = parts[0];
+        for(int i = 0; i < parts.size(); i++){
+            int newIndex = i;
+            // System.out.println(parts);
+            int indexOfDollar = parts.get(newIndex).indexOf('$');
+            if (indexOfDollar > 0){
+                int indexOfLeft = parts.get(newIndex).indexOf('(');
+                if((indexOfLeft >= indexOfDollar) || (indexOfLeft == -1)){
+                    String[] subPart = parts.get(newIndex).split("\\$", 2);
+                    // System.out.println(parts);
+                    // System.out.print("[");
+                    // for(String x : subPart){
+                    //     System.out.print(x + ", ");
+                    // }
+                    // System.out.println("]");
+                    parts.set(newIndex, "$" + subPart[1]);
+                    parts.add(newIndex, subPart[0]);
+                    i++;
+                }
+            }   
+        }
+
+
+
+        String opcode = parts.get(0);
         if (opcodes.containsKey(opcode)) {
+            String[] partsAsArray = parts.toArray(new String[parts.size()]);
             switch (opcode) {
                 // Process R-type instructions
                 case "add":
                 case "sub":
                 case "slt":
-                    R_instruction(opcode, parts);
+                case "and":
+                case "or":
+                    R_instruction(opcode, parts.toArray(partsAsArray));
                     break;
                 case "addi":
                 case "lw":
                 case "sw":
                     // I-type instructions
-                    I_instruction(opcode, parts);
+                    I_instruction(opcode, partsAsArray);
                     break;
                 case "beq":
                 case "bne":
                     // Branch instructions
-                    Branch_instruction(opcode, parts, instructionIndex);
+                    Branch_instruction(opcode, partsAsArray, instructionIndex);
                     break;
                 case "j":
                 case "jal":
                     // J-type instructions
-                    J_instruction(opcode, parts);
+                    J_instruction(opcode, partsAsArray);
                     break;
                 case "jr":
                     // JR instruction
-                    JR_Instruction(opcode, parts);
+                    JR_Instruction(opcode, partsAsArray);
                     break;
                 case "sll":
                     // SLL instruction
-                    SLL_instruction(opcode, parts);
+                    SLL_instruction(opcode, partsAsArray);
                     break;
                 default:
-                    System.out.println("Unsupported instruction: " + line);
-                    break;
+                    System.out.println("unsupported instruction: " + line);
+                    return true;
+                    // break;
             }
         } else {
-            System.out.println("Invalid opcode: " + opcode);
+            System.out.println("invalid instruction: " + opcode);
+            return true;
         }
+
+        return false;
     }
 
     // Method implementations for R-type, I-type, J-type, etc.
@@ -180,6 +216,7 @@ public class MIPSAssembler {
             case "and":
                 funct = "100100";
                 break;
+
             default:
                 funct = "";
         }
