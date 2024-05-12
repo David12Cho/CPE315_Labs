@@ -156,7 +156,92 @@ public class MipsUnit{
     // HELPER FUNCTION: called by stepThrough(int numSteps), 
     // but is the one that actually executes an instruction
     public  void executeLine(){
+        String[] command = instructions.get(programCounter).trim().split("//s+");
 
+            // and, or, add, addi, sll, sub, slt, beq, bne, lw, sw, j, jr, and jal
+
+        switch (command.length){
+            case 4:
+                command[1] = command[1].substring(0, command[1].length() - 1);
+                command[2] = command[2].substring(0, command[2].length() - 1);
+
+                switch (command[0]){
+                    case "and":
+                        and(command[1], command[2], command[3]);
+                        break;
+
+                    case "or":
+                        or(command[1], command[2], command[3]);
+                        break;
+
+                    case "add":
+                        add(command[1], command[2], command[3]);
+                        break;
+
+                    case "addi":
+                        addi(command[1], command[2], command[3]);
+                        break;
+
+                    case "sll":
+                        sll(command[1], command[2], command[3]);
+                        break;
+
+                    case "sub":
+                        sub(command[1], command[2], command[3]);
+                        break;
+
+                    case "slt":
+                        slt(command[1], command[2], command[3]);
+                        break;
+
+                    case "beq":
+                        beq(command[1], command[2], command[3]);
+                        break;
+
+                    case "bne":
+                        bne(command[1], command[2], command[3]);
+                        break;
+
+                    default:
+                        System.out.print("error\n");
+
+                }
+
+            case 3:
+                command[1] = command[1].substring(0, command[1].length() - 1);
+
+                switch (command[0]){
+                    case "lw":
+                        lw(command[1], command[2]);
+                        break;
+                    case "sw":
+                        sw(command[1], command[2]);
+                        break;
+                    default:
+                        System.out.print("error\n");
+                }
+
+            case 2:
+                switch (command[0]){
+                    case "j":
+                        j(command[1]);
+                        break;
+                    case "jr":
+                        jr(command[1]);
+                        break;
+                    case "jal":
+                        jal(command[1]);
+                        break;
+                    default:
+                        System.out.print("error\n");
+                        
+                }
+
+            default:
+                System.out.print("error\n");
+        }
+
+        programCounter++;
     }
 
     
@@ -201,6 +286,108 @@ public class MipsUnit{
     }
 
     // No quit
+
+
+
+
+
+
+    /***  ALL SUPPORTED INSTRUCTION COMMANDS  ***/
+    // and, or, add, addi, sll, sub, slt, beq, bne, lw, sw, j, jr, and jal
+
+
+    /* ALL COMMANDS NEEDING THREE PARAMETERS */
+    public void and(String arg1, String arg2, String arg3){
+        registers.put("arg1",
+            registers.get("arg2") & registers.get("arg3")
+        );
+    }
+    public void or(String arg1, String arg2, String arg3){
+        registers.put("arg1",
+            registers.get("arg2") | registers.get("arg3")
+        );
+    }
+    public void add(String arg1, String arg2, String arg3){
+        registers.put("arg1",
+            registers.get("arg2") + registers.get("arg3")
+        );
+    }
+    public void addi(String arg1, String arg2, String arg3){
+        registers.put("arg1",
+            registers.get("arg2") + Integer.parseInt("arg3")
+        );
+
+    }
+    public void sll(String arg1, String arg2, String arg3){
+        registers.put("arg1",
+            registers.get("arg2") << Integer.parseInt("arg3")
+        );
+    }
+    public void sub(String arg1, String arg2, String arg3){
+        registers.put("arg1",
+            registers.get("arg2") - registers.get("arg3")
+        );
+    }
+    public void slt(String arg1, String arg2, String arg3){
+        int zeroFlag = 0;
+
+        if (registers.get("arg2") < registers.get("arg3")){
+            zeroFlag = 1;
+        }
+
+        registers.put("arg1",
+            zeroFlag
+        );
+        
+    }
+    public void beq(String arg1, String arg2, String arg3){
+        if(registers.get("arg1") == registers.get("arg2")){
+            programCounter = labels.get("arg3");
+        }
+    }
+    public void bne(String arg1, String arg2, String arg3){
+        if(registers.get("arg1") != registers.get("arg2")){
+            programCounter = labels.get("arg3");
+        }
+    }
+
+
+    /* ALL COMMANDS NEEDING TWO PARAMETERS */
+    public void lw(String arg1, String arg2){
+        int address = offSet(arg2);
+
+        registers.put(arg1, dataMemory[address]);
+    }
+    public void sw(String arg1, String arg2){
+        int address = offSet(arg2);
+
+        dataMemory[address] = registers.get(arg1);
+    }
+
+    // Helper function to offset for data memory
+    public int offSet(String arg1){
+        int[] result = new int[2];
+        String[] parts = arg1.split("\\$");
+
+        for (int i = 0; i < 2; i++) {
+            String number = parts[i].replaceAll("[^0-9]", "");
+            result[i] = Integer.parseInt(number);
+        }
+    
+        return result[0] + result[1];
+    }
+
+    /* ALL COMMANDS WITH ONE ARGUMENT */
+    public void j(String arg1){
+        programCounter = labels.get(arg1);
+    }
+    public void jr(String arg1){
+        programCounter = registers.get(arg1);
+    }
+    public void jal(String arg1){
+        registers.put("$ra", programCounter);
+        j(arg1);
+    }
 }
 
 
