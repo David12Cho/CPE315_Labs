@@ -74,21 +74,82 @@ public class MipsPipelinedSimulator {
 
     private void decode() {
         if (!ifId.isEmpty) {
-            idEx.instruction = ifId.instruction;
-            // Parse instruction and fill operands, assuming instruction format is known
+            String[] parts = ifId.instruction.split("\\s+");
+            String opcode = parts[0];
+            idEx.instruction = opcode;
+            idEx.operands = new int[parts.length - 1]; // Assuming all other parts are operands
+
+            for (int i = 1; i < parts.length; i++) {
+                String operand = parts[i].replace(",", "").trim();
+                if (operand.startsWith("$")) {
+                    idEx.operands[i - 1] = registers.get(operand);
+                } else {
+                    // Handle immediate values
+                    idEx.operands[i - 1] = Integer.parseInt(operand);
+                }
+            }
+
+            idEx.isEmpty = false;
             ifId.clear();
         }
     }
 
+
     private void execute() {
         if (!idEx.isEmpty) {
-            // Execute the instruction based on type, e.g., ADD, SUB
-            // Assume that the instruction and operands are parsed and available
-            exMem.result = performOperation(idEx.instruction, idEx.operands);
-            exMem.isEmpty = false;
+            String opcode = idEx.instruction;
+            int[] operands = idEx.operands;
+
+            // Assume operands[0] is the destination, operands[1] and operands[2] are the sources
+            // for arithmetic operations, or source and immediate for I-type instructions
+            switch (opcode) {
+                case "add":
+                    exMem.result = operands[1] + operands[2];
+                    exMem.isEmpty = false;
+                    break;
+                case "sub":
+                    exMem.result = operands[1] - operands[2];
+                    exMem.isEmpty = false;
+                    break;
+                case "and":
+                    exMem.result = operands[1] & operands[2];
+                    exMem.isEmpty = false;
+                    break;
+                case "or":
+                    exMem.result = operands[1] | operands[2];
+                    exMem.isEmpty = false;
+                    break;
+                case "slt":
+                    exMem.result = (operands[1] < operands[2]) ? 1 : 0;
+                    exMem.isEmpty = false;
+                    break;
+                case "addi":
+                    exMem.result = operands[1] + operands[0]; // operands[0] is treated as immediate here
+                    exMem.isEmpty = false;
+                    break;
+                case "beq":
+                    if (operands[1] == operands[2]) {
+                        pc += operands[0]; // Using immediate value as a branch offset
+                    }
+                    break;
+                case "bne":
+                    if (operands[1] != operands[2]) {
+                        pc += operands[0]; // Using immediate value as a branch offset
+                    }
+                    break;
+                case "lw":
+                case "sw":
+                    // Storing the address calculation for memory access stage
+                    exMem.operands = new int[]{operands[0], operands[1] + operands[2]}; // Register, Address
+                    exMem.isEmpty = false;
+                    break;
+                default:
+                    System.out.println("Unsupported operation");
+            }
             idEx.clear();
         }
     }
+
 
     private int performOperation(String instruction, int[] operands) {
         // Handle the operation logic here
@@ -115,6 +176,8 @@ public class MipsPipelinedSimulator {
         pc++;
         return pc < instructions.size();
     }
+
+
 
     public static void main(String[] args) {
         // Example usage:
