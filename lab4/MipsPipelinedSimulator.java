@@ -6,12 +6,14 @@ import java.util.*;
 
 class PipelineRegister {
     String instruction;
+    String[] registersInUse;
     int[] operands;
     int result;
     boolean isEmpty;
 
     PipelineRegister() {
         this.instruction = null;
+        this.registersInUse = new String[3];
         this.operands = new int[3]; // Assuming max three operands
         this.result = 0;
         this.isEmpty = true;
@@ -19,6 +21,7 @@ class PipelineRegister {
 
     void clear() {
         instruction = null;
+        registersInUse = new String[3];
         operands = new int[3];
         result = 0;
         isEmpty = true;
@@ -120,14 +123,17 @@ public class MipsPipelinedSimulator {
             String[] parts = ifId.instruction.split("\\s+");
             String opcode = parts[0];
             idEx.instruction = opcode;
+            idEx.registersInUse = new String[parts.length - 1];
             idEx.operands = new int[parts.length - 1]; // Assuming all other parts are operands
 
             for (int i = 1; i < parts.length; i++) {
                 String operand = parts[i].replace(",", "").trim();
                 if (operand.startsWith("$")) {
+                    idEx.registersInUse[i - 1] = operand; 
                     idEx.operands[i - 1] = registers.get(operand);
                 } else {
                     // Handle immediate values
+                    idEx.registersInUse[i - 1]  = "None";
                     idEx.operands[i - 1] = Integer.parseInt(operand);
                 }
             }
@@ -142,6 +148,7 @@ public class MipsPipelinedSimulator {
         if (!idEx.isEmpty) {
             String opcode = idEx.instruction;
             int[] operands = idEx.operands;
+            boolean regWrite = false;
 
             // Assume operands[0] is the destination, operands[1] and operands[2] are the sources
             // for arithmetic operations, or source and immediate for I-type instructions
@@ -149,26 +156,32 @@ public class MipsPipelinedSimulator {
                 case "add":
                     exMem.result = operands[1] + operands[2];
                     exMem.isEmpty = false;
+                    regWrite = true;
                     break;
                 case "sub":
                     exMem.result = operands[1] - operands[2];
                     exMem.isEmpty = false;
+                    regWrite = true;
                     break;
                 case "and":
                     exMem.result = operands[1] & operands[2];
                     exMem.isEmpty = false;
+                    regWrite = true;
                     break;
                 case "or":
                     exMem.result = operands[1] | operands[2];
                     exMem.isEmpty = false;
+                    regWrite = true;
                     break;
                 case "slt":
                     exMem.result = (operands[1] < operands[2]) ? 1 : 0;
                     exMem.isEmpty = false;
+                    regWrite = true;
                     break;
                 case "addi":
                     exMem.result = operands[1] + operands[0]; // operands[0] is treated as immediate here
                     exMem.isEmpty = false;
+                    regWrite = true;
                     break;
                 case "beq":
                     if (operands[1] == operands[2]) {
@@ -189,6 +202,18 @@ public class MipsPipelinedSimulator {
                 default:
                     System.out.println("Unsupported operation");
             }
+            if (regWrite && 
+                    !exMem.registersInUse[0].equals("$0") &&
+                    !exMem.registersInUse[0].equals("None") 
+                ){
+                
+                if(exMem.registersInUse[0].equals(idEx.registersInUse[1])){
+                    idEx.operands[1] = exMem.operands[0];
+                } else if (exMem.registersInUse[0].equals(idEx.registersInUse[2])){
+                    idEx.operands[2] = exMem.operands[0]; 
+                }
+            }
+
             idEx.clear();
         }
     }
