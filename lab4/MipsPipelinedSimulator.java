@@ -35,6 +35,9 @@ public class MipsPipelinedSimulator {
     private int[] memory;
     private int pc; // Program counter
     private int cycleCounter;
+    private boolean loadStall;
+    private int branchStallBy;
+    private boolean stillRunning;
 
     // Pipeline stages
     private PipelineRegister ifId, idEx, exMem, memWb;
@@ -46,6 +49,9 @@ public class MipsPipelinedSimulator {
         this.memory = new int[8192]; // Simple memory
         this.pc = 0;
         this.cycleCounter = 0;
+        loadStall = false;
+        branchStallBy = 0;
+        stillRunning = true;
         initializeRegisters();
         initializePipeline();
     }
@@ -97,7 +103,6 @@ public class MipsPipelinedSimulator {
             execute();
             decode();
             fetch();
-            running = updatePc(); // This now correctly controls the loop based on the pc value
             showPipelineRegisters(); // Show the state of the pipeline
         }
     }
@@ -125,6 +130,14 @@ public class MipsPipelinedSimulator {
 
 
     private void simulateOne() {
+        if(pc >= instructions.size() && 
+            ifId.isEmpty &&
+            idEx.isEmpty &&
+            exMem.isEmpty &&
+            memWb.isEmpty){
+                
+                stillRunning = false;
+        }
         if (!shouldStall()) {
             if (!exMem.isEmpty) {
                 memWb = exMem;  // Move from EX/MEM to MEM/WB
@@ -136,8 +149,7 @@ public class MipsPipelinedSimulator {
                 idEx = ifId;    // Move from IF/ID to ID/EX
             }
             fetch();           // Fetch next instruction into IF/ID
-        }
-        updatePc();           // Update program counter if not stalling
+        }          // Update program counter if not stalling
         showPipelineRegisters();
     }
 
@@ -146,8 +158,11 @@ public class MipsPipelinedSimulator {
         // Example: stall if loading from a register that will be used in the subsequent instruction
         if (idEx.instruction != null && idEx.instruction.startsWith("lw")) {
             String destReg = idEx.instruction.split("\\s+")[1];
+            System.out.print("Returned should stall: ");
+            System.out.println(ifId.instruction != null && ifId.instruction.contains(destReg));
             return ifId.instruction != null && ifId.instruction.contains(destReg);
         }
+        System.out.println("Returned should stall: false");
         return false;
     }
 
@@ -155,7 +170,7 @@ public class MipsPipelinedSimulator {
 
 
     private void fetch() {
-        if (!shouldStall() && pc < instructions.size()) {
+        if (ifId.isEmpty && pc < instructions.size()) {
             ifId.instruction = instructions.get(pc++);
             ifId.isEmpty = false;
         }
@@ -172,19 +187,6 @@ public class MipsPipelinedSimulator {
         }
         return false;
     }
-
-    private boolean updatePc() {
-        // Check for any conditions that would prevent the PC from incrementing,
-        // such as the pipeline stalling due to hazards or other conditions.
-        if (!shouldStall() && pc < instructions.size()) {
-            pc++;  // Increment the program counter if not stalling and more instructions are available
-        }
-
-        // Check if the pc is still within the range of instructions to execute
-        return pc < instructions.size();
-    }
-
-
 
     private void decode() {
         if (!ifId.isEmpty) {
@@ -251,6 +253,7 @@ public class MipsPipelinedSimulator {
                         }
                         break;
                     case "lw":
+                        // if(idEx.registersInUse[0].equals())
                     case "sw":
                         // Memory operations: handling differently if necessary
                         break;
