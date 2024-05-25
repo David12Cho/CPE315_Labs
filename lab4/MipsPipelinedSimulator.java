@@ -130,15 +130,15 @@ public class MipsPipelinedSimulator {
 
 
     private void simulateOne() {
-        if(pc >= instructions.size() && 
-            ifId.isEmpty &&
-            idEx.isEmpty &&
-            exMem.isEmpty &&
-            memWb.isEmpty){
-                
-                stillRunning = false;
+        if(pc >= instructions.size() &&
+                ifId.isEmpty &&
+                idEx.isEmpty &&
+                exMem.isEmpty &&
+                memWb.isEmpty){
+
+            stillRunning = false;
         }
-        if (!shouldStall()) {
+        if (stall() == false) {
             if (!exMem.isEmpty) {
                 memWb = exMem;  // Move from EX/MEM to MEM/WB
             }
@@ -154,7 +154,7 @@ public class MipsPipelinedSimulator {
     }
 
 
-    private boolean shouldStall() {
+    private boolean stall() {
         // Example: stall if loading from a register that will be used in the subsequent instruction
         if (idEx.instruction != null && idEx.instruction.startsWith("lw")) {
             String destReg = idEx.instruction.split("\\s+")[1];
@@ -189,7 +189,7 @@ public class MipsPipelinedSimulator {
     }
 
     private void decode() {
-        if (!ifId.isEmpty) {
+        if (ifId.isEmpty == false) {
             String[] parts = ifId.instruction.split("\\s+");
             String opcode = parts[0];
             idEx.instruction = opcode;
@@ -239,7 +239,7 @@ public class MipsPipelinedSimulator {
                     case "or":
                     case "slt":
                         if (idEx.registersInUse.length > 2) { // Ensure there are enough operands
-                            int result = performOperation(opcode, operands);
+                            int result = doOperation(opcode, operands);
                             exMem.result = result;
                             exMem.isEmpty = false;
                             regWrite = true;
@@ -279,7 +279,7 @@ public class MipsPipelinedSimulator {
         }
     }
 
-    private int performOperation(String opcode, int[] operands) {
+    private int doOperation(String opcode, int[] operands) {
         // Perform operation based on the opcode
         switch (opcode) {
             case "add":
@@ -335,7 +335,7 @@ public class MipsPipelinedSimulator {
     }
 
     // Set all registers to 0
-    public void dumpRegisters() {
+    public void dump() {
         System.out.print("\n");
         System.out.printf("pc = %d\n", pc);
 
@@ -423,7 +423,7 @@ public class MipsPipelinedSimulator {
 
 
     // Display data memory between two locations (inclusive)
-    public  void printMemory(int num1, int num2){
+    public void printMemory(int num1, int num2){
         System.out.print("\n");
         for(int i = num1; i <= num2; i++){
             System.out.printf("[%d] = %d\n", i, memory[i]);
@@ -557,4 +557,6 @@ public class MipsPipelinedSimulator {
     }
 
 }
+
+
 

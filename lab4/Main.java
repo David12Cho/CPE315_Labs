@@ -20,12 +20,12 @@ public class Main {
 
         // Load instructions and labels from file if provided
         if (args.length > 0) {
-            loadAssemblyFile(args[0]);
+            loadFile(args[0]);
         }
 
         // Run in interactive mode or script mode
         if (args.length > 1) {
-            runScriptFile(args[1]);
+            runFile(args[1]);
         } else {
             interactiveMode();
         }
@@ -36,14 +36,14 @@ public class Main {
 
 
     // Load assembly file
-    public static void loadAssemblyFile(String filename) throws IOException{
+    public static void loadFile(String filename) throws IOException{
         Map<String, Integer> labels = new HashMap<>();
         List<String> instructions = new ArrayList<>();
 
         Scanner scanner = new Scanner(new File(filename));
         int address = 0;
 
-        while (scanner.hasNextLine()) {
+        while (scanner.hasNextLine() == true) {
             String nextline = scanner.nextLine().trim();
             // Skip empty lines and comments
             if (nextline.isEmpty()){
@@ -80,7 +80,7 @@ public class Main {
 
 
     // Run script file
-    public static void runScriptFile(String filename) {
+    public static void runFile(String filename) {
         try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
             String line;
             while ((line = reader.readLine()) != null) {
@@ -139,7 +139,7 @@ public class Main {
                 simulator.showHelp();
                 break;
             case "d":
-                simulator.dumpRegisters();
+                simulator.dump();
                 break;
             case "s":
                 simulator.stepThrough();
@@ -163,4 +163,6 @@ public class Main {
     // Execute command
 
 }
+
+
 
