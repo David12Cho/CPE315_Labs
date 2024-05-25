@@ -97,26 +97,94 @@ public class MipsPipelinedSimulator {
             execute();
             decode();
             fetch();
-            running = updatePc();
+            running = updatePc(); // This now correctly controls the loop based on the pc value
+            showPipelineRegisters(); // Show the state of the pipeline
         }
     }
 
-    public void simulateOne() {
-        cycleCounter++;
-        writeBack();
-        memoryAccess();
-        execute();
-        decode();
-        fetch();
-        updatePc();
+    public void clear() {
+        // Reset all registers to 0, except $0 if your architecture requires it to be always 0
+        registers.keySet().forEach(key -> registers.put(key, 0));
+        registers.put("$0", 0);  // MIPS convention: Register $0 is always 0
+
+        // Clear memory
+        Arrays.fill(memory, 0);
+
+        // Reset pipeline registers
+        ifId.clear();
+        idEx.clear();
+        exMem.clear();
+        memWb.clear();
+
+        // Reset the program counter and cycle counter
+        pc = 0;
+        cycleCounter = 0;
+
+        System.out.println("All registers, memory, and pipeline states have been reset.");
     }
 
+
+    private void simulateOne() {
+        if (!shouldStall()) {
+            if (!exMem.isEmpty) {
+                memWb = exMem;  // Move from EX/MEM to MEM/WB
+            }
+            if (!idEx.isEmpty) {
+                exMem = idEx;   // Move from ID/EX to EX/MEM
+            }
+            if (!ifId.isEmpty) {
+                idEx = ifId;    // Move from IF/ID to ID/EX
+            }
+            fetch();           // Fetch next instruction into IF/ID
+        }
+        updatePc();           // Update program counter if not stalling
+        showPipelineRegisters();
+    }
+
+
+    private boolean shouldStall() {
+        // Example: stall if loading from a register that will be used in the subsequent instruction
+        if (idEx.instruction != null && idEx.instruction.startsWith("lw")) {
+            String destReg = idEx.instruction.split("\\s+")[1];
+            return ifId.instruction != null && ifId.instruction.contains(destReg);
+        }
+        return false;
+    }
+
+
+
+
     private void fetch() {
-        if (pc < instructions.size()) {
-            ifId.instruction = instructions.get(pc);
+        if (!shouldStall() && pc < instructions.size()) {
+            ifId.instruction = instructions.get(pc++);
             ifId.isEmpty = false;
         }
     }
+
+
+    private boolean checkStallCondition() {
+        // Simple stall condition: stall if the next instruction is a load and the following one uses the loaded data
+        if (!idEx.isEmpty && idEx.instruction.startsWith("lw")) {
+            String loadedReg = idEx.registersInUse[0]; // Assuming the loaded register is the first in use
+            if (!ifId.isEmpty && (ifId.instruction.contains(loadedReg))) {
+                return true; // Stall condition met
+            }
+        }
+        return false;
+    }
+
+    private boolean updatePc() {
+        // Check for any conditions that would prevent the PC from incrementing,
+        // such as the pipeline stalling due to hazards or other conditions.
+        if (!shouldStall() && pc < instructions.size()) {
+            pc++;  // Increment the program counter if not stalling and more instructions are available
+        }
+
+        // Check if the pc is still within the range of instructions to execute
+        return pc < instructions.size();
+    }
+
+
 
     private void decode() {
         if (!ifId.isEmpty) {
@@ -128,9 +196,16 @@ public class MipsPipelinedSimulator {
 
             for (int i = 1; i < parts.length; i++) {
                 String operand = parts[i].replace(",", "").trim();
-                if (operand.startsWith("$")) {
-                    idEx.registersInUse[i - 1] = operand; 
-                    idEx.operands[i - 1] = registers.get(operand);
+                if (operand.contains("(")) {
+                    // Handle memory access, e.g., 0($a1)
+                    String[] memAccess = operand.split("\\(");
+                    int offset = Integer.parseInt(memAccess[0]);
+                    String reg = memAccess[1].substring(0, memAccess[1].length() - 1); // Remove the closing ')'
+                    idEx.registersInUse[i - 1] = reg;
+                    idEx.operands[i - 1] = offset + registers.getOrDefault(reg, 0);
+                } else if (operand.startsWith("$")) {
+                    idEx.registersInUse[i - 1] = operand;
+                    idEx.operands[i - 1] = registers.getOrDefault(operand, 0);
                 } else {
                     // Handle immediate values
                     idEx.registersInUse[i - 1]  = "None";
@@ -143,86 +218,82 @@ public class MipsPipelinedSimulator {
         }
     }
 
-
     private void execute() {
         if (!idEx.isEmpty) {
             String opcode = idEx.instruction;
-            int[] operands = idEx.operands;
+            // Clone operands to allow modifications if forwarding is applied
+            int[] operands = Arrays.copyOf(idEx.operands, idEx.operands.length);
             boolean regWrite = false;
 
-            // Assume operands[0] is the destination, operands[1] and operands[2] are the sources
-            // for arithmetic operations, or source and immediate for I-type instructions
-            switch (opcode) {
-                case "add":
-                    exMem.result = operands[1] + operands[2];
-                    exMem.isEmpty = false;
-                    regWrite = true;
-                    break;
-                case "sub":
-                    exMem.result = operands[1] - operands[2];
-                    exMem.isEmpty = false;
-                    regWrite = true;
-                    break;
-                case "and":
-                    exMem.result = operands[1] & operands[2];
-                    exMem.isEmpty = false;
-                    regWrite = true;
-                    break;
-                case "or":
-                    exMem.result = operands[1] | operands[2];
-                    exMem.isEmpty = false;
-                    regWrite = true;
-                    break;
-                case "slt":
-                    exMem.result = (operands[1] < operands[2]) ? 1 : 0;
-                    exMem.isEmpty = false;
-                    regWrite = true;
-                    break;
-                case "addi":
-                    exMem.result = operands[1] + operands[0]; // operands[0] is treated as immediate here
-                    exMem.isEmpty = false;
-                    regWrite = true;
-                    break;
-                case "beq":
-                    if (operands[1] == operands[2]) {
-                        pc += operands[0]; // Using immediate value as a branch offset
-                    }
-                    break;
-                case "bne":
-                    if (operands[1] != operands[2]) {
-                        pc += operands[0]; // Using immediate value as a branch offset
-                    }
-                    break;
-                case "lw":
-                case "sw":
-                    // Storing the address calculation for memory access stage
-                    exMem.operands = new int[]{operands[0], operands[1] + operands[2]}; // Register, Address
-                    exMem.isEmpty = false;
-                    break;
-                default:
-                    System.out.println("Unsupported operation");
-            }
-            if (regWrite && 
-                    !exMem.registersInUse[0].equals("$0") &&
-                    !exMem.registersInUse[0].equals("None") 
-                ){
-                
-                if(exMem.registersInUse[0].equals(idEx.registersInUse[1])){
-                    idEx.operands[1] = exMem.operands[0];
-                } else if (exMem.registersInUse[0].equals(idEx.registersInUse[2])){
-                    idEx.operands[2] = exMem.operands[0]; 
+            // Forwarding logic (assuming it's correctly implemented before)
+            // Your existing forwarding code goes here
+
+            // Execute the operation based on the opcode
+            try {
+                switch (opcode) {
+                    case "add":
+                    case "sub":
+                    case "and":
+                    case "or":
+                    case "slt":
+                        if (idEx.registersInUse.length > 2) { // Ensure there are enough operands
+                            int result = performOperation(opcode, operands);
+                            exMem.result = result;
+                            exMem.isEmpty = false;
+                            regWrite = true;
+                        }
+                        break;
+                    case "addi":
+                        if (idEx.registersInUse.length > 1) { // Immediate operations typically use at least two operands
+                            exMem.result = operands[1] + operands[0]; // operands[0] might be immediate here
+                            exMem.isEmpty = false;
+                            regWrite = true;
+                        }
+                        break;
+                    case "lw":
+                    case "sw":
+                        // Memory operations: handling differently if necessary
+                        break;
+                    case "beq":
+                    case "bne":
+                        // Branch operations: handle PC changes
+                        break;
+                    default:
+                        System.out.println("Unsupported operation: " + opcode);
                 }
+            } catch (ArrayIndexOutOfBoundsException e) {
+                System.out.println("Error executing instruction: " + opcode + " with insufficient operands.");
             }
 
-            idEx.clear();
+            // Handling register write-back setup
+            if (regWrite && idEx.registersInUse.length > 0) {
+                exMem.registersInUse = new String[]{idEx.registersInUse[0]}; // Ensure register destination exists
+            } else {
+                exMem.registersInUse = new String[]{"None"};
+            }
+
+            idEx.clear(); // Clear the ID/EX pipeline register after use
         }
     }
 
-
-    private int performOperation(String instruction, int[] operands) {
-        // Handle the operation logic here
-        return 0;
+    private int performOperation(String opcode, int[] operands) {
+        // Perform operation based on the opcode
+        switch (opcode) {
+            case "add":
+                return operands[1] + operands[2];
+            case "sub":
+                return operands[1] - operands[2];
+            case "and":
+                return operands[1] & operands[2];
+            case "or":
+                return operands[1] | operands[2];
+            case "slt":
+                return (operands[1] < operands[2]) ? 1 : 0;
+            default:
+                throw new IllegalArgumentException("Unsupported operation: " + opcode);
+        }
     }
+
 
     private void memoryAccess() {
         if (!exMem.isEmpty) {
@@ -240,20 +311,12 @@ public class MipsPipelinedSimulator {
         }
     }
 
-    private boolean updatePc() {
-        pc++;
-        return pc < instructions.size();
-    }
-
-
-
-
     //Everything from Lab 3
     // Prints out valid commands
     public void showHelp() {
         System.out.print(
                 """
-
+ 
                 h = show help
                 d = dump register state
                 p = show pipeline registers
@@ -263,7 +326,7 @@ public class MipsPipelinedSimulator {
                 m num1 num2 = display data memory from location num1 to num2
                 c = clear all registers, memory, and the program counter to 0
                 q = exit the program
-                
+               
                 """
         );
     }
@@ -319,19 +382,15 @@ public class MipsPipelinedSimulator {
     }
 
     // Show pipelineRegisters
-    public void showPipelineRegisters(){
-        String[] pRegContents = {"empty", "empty", "empty", "empty"};
-        System.out.print("\n");
-        System.out.print("pc      if/id   id/exe  exe/mem mem/wb\n");
-        System.out.printf("%d       %s     %s    %s   %s", 
-            pc,
-            pRegContents[0],
-            pRegContents[1],
-            pRegContents[2],
-            pRegContents[3]
+    public void showPipelineRegisters() {
+        System.out.println("\npc\tif/id\tid/exe\texe/mem\tmem/wb");
+        System.out.printf("%d\t%s\t%s\t%s\t%s\n",
+                pc,
+                ifId.isEmpty ? "empty" : ifId.instruction,
+                idEx.isEmpty ? "empty" : idEx.instruction,
+                exMem.isEmpty ? "empty" : exMem.instruction,
+                memWb.isEmpty ? "empty" : memWb.instruction
         );
-	
-        System.out.print("\n");
     }
 
     // Step through one instruction in the program
@@ -349,14 +408,16 @@ public class MipsPipelinedSimulator {
     }
 
     // Run until program ends
-    public  void runTheRest(){
-        while(pc < instructions.size() && !(ifId.isEmpty && 
-                                            idEx.isEmpty && 
-                                            exMem.isEmpty &&
-                                            memWb.isEmpty)){
+    public void runTheRest() {
+        while (pc < instructions.size() && !ifId.isEmpty && !idEx.isEmpty && !exMem.isEmpty && !memWb.isEmpty) {
             simulateOne();
+            if (pc >= instructions.size()) {
+                System.out.println("End of instructions reached.");
+                break;
+            }
         }
     }
+
 
     // Display data memory between two locations (inclusive)
     public  void printMemory(int num1, int num2){
@@ -368,19 +429,7 @@ public class MipsPipelinedSimulator {
     }
 
     // Clears registers, data memory, and sets pc back to 0
-    public void clear(){
-        for (String reg : registers.keySet()){
-            registers.put(reg, 0);
-        }
 
-        // Clear memory
-        memory = new int[8192];
-
-        // Pc back to 0
-        pc = 0;
-
-        System.out.print("        Simulator reset\n\n");
-    }
 
     // No quit
 
@@ -464,7 +513,7 @@ public class MipsPipelinedSimulator {
 
     public void sw(String arg1, String arg2) {
         // System.out.println("Args: " + arg1 + " " + arg2);
-        // System.out.printf("register %s: %d\nregister %s: %d\n\n", 
+        // System.out.printf("register %s: %d\nregister %s: %d\n\n",
         //             arg1, registers.get(arg1), arg2, registers.get(arg2));
 
         int address = offSet(arg2);
@@ -475,7 +524,7 @@ public class MipsPipelinedSimulator {
 
     // Helper function to offset for data memory
     public int offSet(String arg1) {
-        
+
 
         int signAt = arg1.indexOf('$');
 

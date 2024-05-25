@@ -36,7 +36,7 @@ public class Main {
 
 
     // Load assembly file
-    public static void loadAssemblyFile(String filename) throws IOException{ 
+    public static void loadAssemblyFile(String filename) throws IOException{
         Map<String, Integer> labels = new HashMap<>();
         List<String> instructions = new ArrayList<>();
 
@@ -78,6 +78,7 @@ public class Main {
         // simulator.printStuff();
     }
 
+
     // Run script file
     public static void runScriptFile(String filename) {
         try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
@@ -106,32 +107,60 @@ public class Main {
         scanner.close();
     }
 
-    // Execute command
     public static boolean executeCommand(String command) {
-        if (command.equals("h")) {
-            simulator.showHelp();
-        } else if (command.equals("d")) {
-            simulator.dumpRegisters();
-        } else if (command.equals("s")) {
-            simulator.stepThrough();
-        } else if (command.startsWith("s ")) {
-            int num = Integer.parseInt(command.substring(2).trim());
-            simulator.stepThrough(num);
-        } else if (command.equals("r")) {
-            simulator.runTheRest();
+        // Check for commands that start with "s " or "m " which indicates parameters follow.
+        if (command.startsWith("s ")) {
+            try {
+                int numSteps = Integer.parseInt(command.substring(2).trim());
+                simulator.stepThrough(numSteps);
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid step count.");
+            }
+            return true; // Continue running the command loop
         } else if (command.startsWith("m ")) {
-            String[] parts = command.substring(2).trim().split(" ");
-            int num1 = Integer.parseInt(parts[0]); 
-            int num2 = Integer.parseInt(parts[1]);
-            simulator.printMemory(num1, num2);
-        } else if (command.equals("c")) {
-            simulator.clear();
-        } else if (command.equals("q")) {
-            return false;
-        } else {
-            System.out.println("Invalid command. Type 'h' for help.");
+            try {
+                String[] parts = command.substring(2).trim().split(" ");
+                int start = Integer.parseInt(parts[0]);
+                int end = Integer.parseInt(parts[1]);
+                simulator.printMemory(start, end);
+            } catch (Exception e) {
+                System.out.println("Invalid memory range.");
+            }
+            return true; // Continue running the command loop
         }
 
-        return true;
+        else if (command.equals("q")) {
+            return false; // Correctly exits the loop
+        }
+
+        // Handle other commands
+        switch (command) {
+            case "h":
+                simulator.showHelp();
+                break;
+            case "d":
+                simulator.dumpRegisters();
+                break;
+            case "s":
+                simulator.stepThrough();
+                break;
+            case "r":
+                simulator.runTheRest();
+                break;
+            case "c":
+                simulator.clear();
+                break;
+            case "q":
+                return false; // Exiting the program
+            default:
+                System.out.println("Invalid command. Type 'h' for help.");
+                break;
+        }
+        return true; // Continue running the command loop
     }
+
+
+    // Execute command
+
 }
+
