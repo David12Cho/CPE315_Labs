@@ -1,5 +1,8 @@
-import java.util.*;
-
+/*
+ * Dre Suguitan, David Cho
+ * Section 1
+ * Description: File that is used as a cache storage unit
+ */
 
 public class Cache{
     private CacheRow[] cache;

@@ -1,3 +1,9 @@
+/*
+ * Dre Suguitan, David Cho
+ * Section 1
+ * Description: Code emulates 7 caches and reports stats when running a file of addresses.
+ */
+
 import java.io.File;
 import java.io.IOException;
 import java.util.*;

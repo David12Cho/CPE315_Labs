@@ -1,3 +1,9 @@
+/*
+ * Dre Suguitan, David Cho
+ * Section 1
+ * Description: File that resembles a row of a cache  
+ */
+
 import java.util.*;
 
 public class CacheRow {
