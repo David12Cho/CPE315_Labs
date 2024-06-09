@@ -34,24 +34,45 @@ public class CacheRow {
     }
 
     public boolean hitOrMiss(int tag){
-        int aOffset = Arrays.binarySearch(tags, tag);
+        // System.out.println("\t" + lastUsed.toString());
+        int aOffset = -1;
+        for (int i = 0; i < tags.length; i++){
+            if(tags[i] == tag){
+                aOffset = i;
+                break;
+            }
+        }
         
+        // Tag isn't found (miss)
         if(aOffset == -1){
-            int unusedIndex = Arrays.binarySearch(tags, -1);
 
+            // Try to find open space
+            int unusedIndex = -1;
+            for (int i = 0; i < tags.length; i++){
+                if (tags[i] == -1){
+                    unusedIndex = i;
+                    break;
+                }
+            }
+
+            // If no open space, replace least recently used
             if(unusedIndex == -1){
                 tags[leastRecentlyUsed()] = tag;
                 updateLastUsed(leastRecentlyUsed());
+
+            // If open space, write tag in open slot
             } else {
                 tags[unusedIndex] = tag;
-                int modified = lastUsed.remove(0);
-                lastUsed.add(modified);
+                lastUsed.add(unusedIndex);
             }
 
-
+            // System.out.println(false);
             return false;
+
+        // Tag is found (hit)
         } else {
            updateLastUsed(aOffset);
+        //    System.out.println(true);
            return true;
         }
     }
